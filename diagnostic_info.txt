@@ -1,0 +1,8 @@
+
+Here is the example of gcc's diagnostic message:
+
+main.c:20:15: error: expected ';' after expression
+         ConsoleInit()
+                      ^
+                      ;
+ 1 error generated.

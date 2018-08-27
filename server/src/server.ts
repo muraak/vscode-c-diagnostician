@@ -17,6 +17,7 @@ import {
 
 import * as child_process from "child_process";
 import * as path from "path";
+import Uri from "vscode-uri";
 
 // Create a connection for the server. The connection uses Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -158,13 +159,11 @@ async function validateTextDocumentForGCC(textDocument: TextDocument): Promise<v
 	let args = settings.compileOptions.concat([path.basename(textDocument.uri)]);
 
 	child_process.execFile(settings.compileCommand, args,{
-		cwd: path.dirname(textDocument.uri.replace("file://", ""))},
-		(error, stdout, stderr) => {
-			console.log(error);
-			console.log(stdout);
+		cwd: path.dirname(Uri.parse(textDocument.uri).fsPath)},
+		(stderr) => {
 			if(stderr)
 			{
-				parseDiagnosticMessageForGCC(stderr, textDocument);
+				parseDiagnosticMessageForGCC(stderr.message, textDocument);
 			}
 			else
 			{
@@ -205,7 +204,7 @@ async function parseDiagnosticMessageForGCC(message: string, textDocument: TextD
 					end:
 					{
 						line: parseInt(match[settings.parse.index.line_pos], 10) - 1,
-						character: lines[parseInt(match[settings.parse.index.line_pos], 10) - 1].length - 1, // for now
+						character: lines[parseInt(match[settings.parse.index.line_pos], 10) - 1].length, // for now
 					},
 				},
 				message: error,

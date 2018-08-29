@@ -46,6 +46,21 @@
 					"default": "gcc",
 					"description": "Compile command in your environment."
 				},
+				"cccdiag.includeOptionPrefix":{
+					"scope": "resource",
+					"type": "string",
+					"default": "-I"
+				},
+				"cccdiag.includePath.absolute": {
+					"scope": "resource",
+					"type": "array",
+					"default": []
+				},
+				"cccdiag.includePath.relative": {
+					"scope": "resource",
+					"type": "array",
+					"default": []
+				},
 				"cccdiag.compileOptions": {
 					"scope": "resource",
 					"type": "array",
@@ -59,6 +74,11 @@
 					"scope": "resource",
 					"type": "string",
 					"default": "^.+:[0-9]+:[0-9]+:"
+				},
+				"cccdiag.parse.encoding": {
+					"scope": "resource",
+					"type": "string",
+					"default": "utf-8"
 				},
 				"cccdiag.parse.diagInfoPattern": {
 					"scope": "resource",
@@ -84,6 +104,27 @@
 					"scope": "resource",
 					"type": "integer",
 					"default": 4
+				},
+
+				"cccdiag.parse.severityIdentifier.error": {
+					"scope": "resource",
+					"type": "string",
+					"default": "error"
+				},
+				"cccdiag.parse.severityIdentifier.warning": {
+					"scope": "resource",
+					"type": "string",
+					"default": "warning"
+				},
+				"cccdiag.parse.severityIdentifier.information": {
+					"scope": "resource",
+					"type": "string",
+					"default": "info"
+				},
+				"cccdiag.parse.severityIdentifier.hint": {
+					"scope": "resource",
+					"type": "string",
+					"default": "hint"
 				}
 			}
 		}
@@ -104,6 +145,8 @@
 		"typescript": "2.8.3"
 	},
 	"dependencies": {
+		"iconv-lite": "^0.4.24",
+		"utf8": "^3.0.0",
 		"vscode-uri": "^1.0.6"
 	}
 }

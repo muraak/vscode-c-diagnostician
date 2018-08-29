@@ -2,3 +2,5 @@ out
 node_modules
 client/server
 .vscode-test
+server/src/test/armcc_diagnostic_message.txt
+

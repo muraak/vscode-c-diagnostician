@@ -13,11 +13,14 @@ import {
 	ProposedFeatures,
 	InitializeParams,
 	DidChangeConfigurationNotification,
+	ShowMessageNotification,
+	MessageType,
 } from 'vscode-languageserver';
 
 import * as child_process from "child_process";
 import * as path from "path";
 import Uri from "vscode-uri";
+import * as iconv from "iconv-lite";
 
 // Create a connection for the server. The connection uses Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
@@ -70,14 +73,26 @@ interface CccdSettings {
 	maxNumberOfProblems: number;
 	compileCommand: string;
 	compileOptions: string[];
+	includeOptionPrefix: string;
+	includePath: {
+		absolute: string[];
+		relative: string[];
+	}
 	diagDelimiter: string;
 	parse: {
+		encoding: string,
 		diagInfoPattern: string;
 		index: {
 			file_name: number;
 			line_pos: number;
 			char_pos: number;
 			severity: number;
+		}
+		severityIdentifier: {
+			error: string;
+			warning: string;
+			information: string;
+			hint: string;
 		}
 	}
 }
@@ -89,15 +104,27 @@ const defaultSettings: CccdSettings = {
 	maxNumberOfProblems: 1000,
 	compileCommand: "gcc",
 	compileOptions: ["-fsyntax-only", "-Wall", "-fdiagnostics-parseable-fixits"],
+	includeOptionPrefix: "-I",
+	includePath: {
+		absolute: [],
+		relative: [],
+	},
 	diagDelimiter: "^.+:[0-9]+:[0-9]+:",
 	parse: {
+		encoding: "utf-8",
 		diagInfoPattern: "^(.+):([0-9]+):([0-9]+):\s*(.+):.*",
 		index: {
 			file_name: 1,
 			line_pos: 2,
 			char_pos: 3,
 			severity: 4
-		}
+		},
+		severityIdentifier: {
+			error: "error",
+			warning: "warning",
+			information: "information",
+			hint: "hint"
+		},
 	}
 };
 
@@ -156,14 +183,33 @@ documents.onDidOpen(e =>{
 async function validateTextDocumentForGCC(textDocument: TextDocument): Promise<void>
 {
 	let settings = await getDocumentSettings(textDocument.uri);
-	let args = settings.compileOptions.concat([path.basename(textDocument.uri)]);
+	let includePathOptions = await getIncludePathOptions(settings);
+
+	let args = settings.compileOptions;
+	
+	if(includePathOptions) 
+	{
+		args = args.concat(includePathOptions);
+	}
+
+	args = args.concat([path.basename(textDocument.uri)]);
 
 	child_process.execFile(settings.compileCommand, args,{
-		cwd: path.dirname(Uri.parse(textDocument.uri).fsPath)},
-		(stderr) => {
+		cwd: path.dirname(Uri.parse(textDocument.uri).fsPath),
+		encoding: "buffer"},
+		(error, stdout, stderr) => {
+			if(error){}
+			if(stdout){}
 			if(stderr)
 			{
-				parseDiagnosticMessageForGCC(stderr.message, textDocument);
+				try
+				{
+					parseDiagnosticMessageForGCC(iconv.decode(stderr, settings.parse.encoding), textDocument);
+				}
+				catch(e)
+				{
+					showDiagnosticErrorMessage(e.message);
+				}
 			}
 			else
 			{
@@ -171,6 +217,48 @@ async function validateTextDocumentForGCC(textDocument: TextDocument): Promise<v
 				connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 			}
 		});
+}
+
+async function getIncludePathOptions(settings: CccdSettings)
+{
+	let includeOptions :string[];
+
+	if(settings.includePath.absolute.length > 0)
+	{
+		includeOptions = settings.includePath.absolute.map<string>((value) => {
+			return settings.includeOptionPrefix + value
+		});
+	}
+
+	if(settings.includePath.relative.length > 0)
+	{
+		let workPath = await getWorkSpaceUri();
+		if(includeOptions)
+		{
+			includeOptions.concat(settings.includePath.relative.map<string>((value) => {
+				return settings.includeOptionPrefix + Uri.parse(path.resolve(workPath, value)).fsPath;
+			}));
+		}
+		else
+		{
+			includeOptions = settings.includePath.relative.map<string>((value) => {
+				return settings.includeOptionPrefix + path.join(Uri.parse(workPath).fsPath, value);
+			});
+		}
+	}
+
+	return includeOptions;
+}
+
+async function getWorkSpaceUri()
+{
+	let uri :string;
+	
+	await connection.workspace.getWorkspaceFolders().then((folders) => {
+		uri = folders[0].uri;
+	});
+
+	return uri;
 }
 
 /* --------------------------------------------------------------------------------------------
@@ -194,7 +282,7 @@ async function parseDiagnosticMessageForGCC(message: string, textDocument: TextD
 		
 		if(path.basename(textDocument.uri) === match[1]) {
 			let diagnosic :Diagnostic = {
-				severity: DiagnosticSeverity.Error, // for now
+				severity: detectSeverity(match[settings.parse.index.severity], settings),
 				range:{
 					start:
 					{
@@ -216,6 +304,40 @@ async function parseDiagnosticMessageForGCC(message: string, textDocument: TextD
 
 	// Send the computed diagnostics to VSCode.
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+}
+
+function detectSeverity(text :string, setting :CccdSettings)
+{
+	if(text.includes(setting.parse.severityIdentifier.error))
+	{
+		return DiagnosticSeverity.Error;
+	}
+
+	if(text.includes(setting.parse.severityIdentifier.warning))
+	{
+		return DiagnosticSeverity.Warning;
+	}
+
+	if(text.includes(setting.parse.severityIdentifier.information))
+	{
+		return DiagnosticSeverity.Information;
+	}
+
+	if(text.includes(setting.parse.severityIdentifier.hint))
+	{
+		return DiagnosticSeverity.Hint;
+	}
+
+	return DiagnosticSeverity.Error;
+}
+
+function showDiagnosticErrorMessage(message :string)
+{
+	connection.sendNotification(
+		ShowMessageNotification.type,{
+			type: MessageType.Error,
+			message: "Diagnostic Error: " + message
+	});
 }
 
 connection.onDidChangeWatchedFiles(_change => {

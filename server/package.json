@@ -16,5 +16,8 @@
 		"vscode-languageserver": "^4.1.3",
 		"vscode-uri": "^1.0.6"
 	},
-	"scripts": {}
+	"scripts": {},
+	"devDependencies": {
+		"@types/utf8": "^2.1.6"
+	}
 }

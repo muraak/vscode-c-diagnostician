@@ -4,3 +4,5 @@ client/server
 .vscode-test
 server/src/test/armcc_diagnostic_message.txt
 
+vscode-c-diagnostician-1.0.0.vsix
+vscode-c-diagnostician-1.0.0.vsix
